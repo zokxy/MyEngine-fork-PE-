@@ -1,22 +1,20 @@
 package states;
 
 import backend.WeekData;
-
 import flixel.input.keyboard.FlxKey;
 import flixel.graphics.frames.FlxAtlasFrames;
 import flixel.graphics.frames.FlxFrame;
 import flixel.group.FlxGroup;
 import flixel.input.gamepad.FlxGamepad;
 import haxe.Json;
-
 import openfl.Assets;
 import openfl.display.Bitmap;
 import openfl.display.BitmapData;
-
 import shaders.ColorSwap;
-
 import states.StoryMenuState;
 import states.MainMenuState;
+import sys.io.File;
+import sys.FileSystem;
 
 typedef TitleData =
 {
@@ -53,16 +51,37 @@ class TitleState extends MusicBeatState
 	var titleTextAlphas:Array<Float> = [1, .64];
 
 	var curWacky:Array<String> = [];
-
 	var wackyImage:FlxSprite;
 
 	#if TITLE_SCREEN_EASTER_EGG
-	final easterEggKeys:Array<String> = [
-		'SHADOW', 'RIVEREN', 'BBPANZU', 'PESSY'
-	];
+	final easterEggKeys:Array<String> = ['SHADOW', 'RIVEREN', 'BBPANZU', 'PESSY'];
 	final allowedKeys:String = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 	var easterEggKeysBuffer:String = '';
 	#end
+
+	public static var mainSettings:Dynamic = null;
+
+	public static function loadMainSettings():Void {
+		if (mainSettings != null) return;
+		
+		var path:String = (Mods.currentModDirectory != null && Mods.currentModDirectory.length > 0)
+			? 'mods/' + Mods.currentModDirectory + '/data/mainsettings.json'
+			: 'assets/data/mainsettings.json';
+		
+		if (FileSystem.exists(path)) {
+			try {
+				var raw:String = File.getContent(path);
+				mainSettings = Json.parse(raw);
+				trace('Loaded mainsettings.json successfully!');
+			} catch(e) {
+				trace('Error parsing mainsettings.json: ' + e);
+				mainSettings = {};
+			}
+		} else {
+			trace('mainsettings.json not found at: ' + path);
+			mainSettings = {};
+		}
+	}
 
 	override public function create():Void
 	{
@@ -83,7 +102,6 @@ class TitleState extends MusicBeatState
 			if(FlxG.save.data != null && FlxG.save.data.fullscreen)
 			{
 				FlxG.fullscreen = FlxG.save.data.fullscreen;
-				//trace('LOADED FULLSCREEN SETTING!!');
 			}
 			persistentUpdate = true;
 			persistentDraw = true;
@@ -95,6 +113,25 @@ class TitleState extends MusicBeatState
 		}
 
 		FlxG.mouse.visible = false;
+		
+		loadMainSettings();
+
+		if (mainSettings != null && mainSettings.skipIntro == true)
+		{
+			initialized = true;
+			skippedIntro = true;
+			
+			if (FlxG.sound.music == null) {
+				FlxG.sound.playMusic(Paths.music('freakyMenu'), 0.7); 
+			}
+
+			FlxG.keys.reset(); 
+			if(FlxG.gamepads.lastActive != null) FlxG.gamepads.lastActive.reset();
+
+			MusicBeatState.switchState(new MainMenuState());
+			return; 
+		}
+
 		#if FREEPLAY
 		MusicBeatState.switchState(new FreeplayState());
 		#elseif CHARTING
@@ -158,7 +195,6 @@ class TitleState extends MusicBeatState
 			gfDance.animation.play('idle');
 		}
 
-
 		var animFrames:Array<FlxFrame> = [];
 		titleText = new FlxSprite(enterPosition.x, enterPosition.y);
 		titleText.frames = Paths.getSparrowAtlas('titleEnter');
@@ -168,7 +204,8 @@ class TitleState extends MusicBeatState
 			titleText.animation.findByPrefix(animFrames, "ENTER FREEZE");
 		}
 		
-		if (newTitle = animFrames.length > 0)
+		var newTitle:Bool = animFrames.length > 0;
+		if (newTitle)
 		{
 			titleText.animation.addByPrefix('idle', "ENTER IDLE", 24);
 			titleText.animation.addByPrefix('press', ClientPrefs.data.flashing ? "ENTER PRESSED" : "ENTER FREEZE", 24);
@@ -198,8 +235,8 @@ class TitleState extends MusicBeatState
 		ngSpr.antialiasing = ClientPrefs.data.antialiasing;
 
 		add(gfDance);
-		add(logoBl); //FNF Logo
-		add(titleText); //"Press Enter to Begin" text
+		add(logoBl);
+		add(titleText);
 		add(credGroup);
 		add(ngSpr);
 
@@ -207,11 +244,8 @@ class TitleState extends MusicBeatState
 			skipIntro();
 		else
 			initialized = true;
-
-		// credGroup.add(credTextShit);
 	}
 
-	// JSON data
 	var characterImage:String = 'gfDanceTitle';
 	var animationName:String = 'gfDance';
 
@@ -256,14 +290,12 @@ class TitleState extends MusicBeatState
 					trace('[WARN] Title JSON might broken, ignoring issue...\n${e.details()}');
 				}
 			}
-			else trace('[WARN] No Title JSON detected, using default values.');
 		}
-		//else trace('[WARN] No Title JSON detected, using default values.');
 	}
 
 	function easterEggData()
 	{
-		if (FlxG.save.data.psychDevsEasterEgg == null) FlxG.save.data.psychDevsEasterEgg = ''; //Crash prevention
+		if (FlxG.save.data.psychDevsEasterEgg == null) FlxG.save.data.psychDevsEasterEgg = '';
 		var easterEgg:String = FlxG.save.data.psychDevsEasterEgg;
 		switch(easterEgg.toUpperCase())
 		{
@@ -324,30 +356,22 @@ class TitleState extends MusicBeatState
 	{
 		if (FlxG.sound.music != null)
 			Conductor.songPosition = FlxG.sound.music.time;
-		// FlxG.watch.addQuick('amp', FlxG.sound.music.amplitude);
 
 		var pressedEnter:Bool = FlxG.keys.justPressed.ENTER || controls.ACCEPT;
 
 		#if mobile
 		for (touch in FlxG.touches.list)
 		{
-			if (touch.justPressed)
-			{
-				pressedEnter = true;
-			}
+			if (touch.justPressed) pressedEnter = true;
 		}
 		#end
 
 		var gamepad:FlxGamepad = FlxG.gamepads.lastActive;
-
 		if (gamepad != null)
 		{
-			if (gamepad.justPressed.START)
-				pressedEnter = true;
-
+			if (gamepad.justPressed.START) pressedEnter = true;
 			#if switch
-			if (gamepad.justPressed.B)
-				pressedEnter = true;
+			if (gamepad.justPressed.B) pressedEnter = true;
 			#end
 		}
 		
@@ -356,16 +380,12 @@ class TitleState extends MusicBeatState
 			if (titleTimer > 2) titleTimer -= 2;
 		}
 
-		// EASTER EGG
-
 		if (initialized && !transitioning && skippedIntro)
 		{
 			if (newTitle && !pressedEnter)
 			{
 				var timer:Float = titleTimer;
-				if (timer >= 1)
-					timer = (-timer) + 2;
-				
+				if (timer >= 1) timer = (-timer) + 2;
 				timer = FlxEase.quadInOut(timer);
 				
 				titleText.color = FlxColor.interpolate(titleTextColors[0], titleTextColors[1], timer);
@@ -376,21 +396,18 @@ class TitleState extends MusicBeatState
 			{
 				titleText.color = FlxColor.WHITE;
 				titleText.alpha = 1;
-				
 				if(titleText != null) titleText.animation.play('press');
 
 				FlxG.camera.flash(ClientPrefs.data.flashing ? FlxColor.WHITE : 0x4CFFFFFF, 1);
 				FlxG.sound.play(Paths.sound('confirmMenu'), 0.7);
 
 				transitioning = true;
-				// FlxG.sound.music.stop();
 
 				new FlxTimer().start(1, function(tmr:FlxTimer)
 				{
 					MusicBeatState.switchState(new MainMenuState());
 					closedState = true;
 				});
-				// FlxG.sound.play(Paths.music('titleShoot'), 0.7);
 			}
 			#if TITLE_SCREEN_EASTER_EGG
 			else if (FlxG.keys.firstJustPressed() != FlxKey.NONE)
@@ -400,14 +417,12 @@ class TitleState extends MusicBeatState
 				if(allowedKeys.contains(keyName)) {
 					easterEggKeysBuffer += keyName;
 					if(easterEggKeysBuffer.length >= 32) easterEggKeysBuffer = easterEggKeysBuffer.substring(1);
-					//trace('Test! Allowed Key pressed!!! Buffer: ' + easterEggKeysBuffer);
 
 					for (wordRaw in easterEggKeys)
 					{
-						var word:String = wordRaw.toUpperCase(); //just for being sure you're doing it right
+						var word:String = wordRaw.toUpperCase();
 						if (easterEggKeysBuffer.contains(word))
 						{
-							//trace('YOOO! ' + word);
 							if (FlxG.save.data.psychDevsEasterEgg == word)
 								FlxG.save.data.psychDevsEasterEgg = '';
 							else
@@ -495,7 +510,7 @@ class TitleState extends MusicBeatState
 		}
 	}
 
-	private var sickBeats:Int = 0; //Basically curBeat but won't be skipped if you hold the tab or resize the screen
+	private var sickBeats:Int = 0;
 	public static var closedState:Bool = false;
 	override function beatHit()
 	{
@@ -523,7 +538,6 @@ class TitleState extends MusicBeatState
 			switch (sickBeats)
 			{
 				case 1:
-					//FlxG.sound.music.stop();
 					FlxG.sound.playMusic(Paths.music('freakyMenu'), 0);
 					FlxG.sound.music.fadeIn(4, 0, 0.7);
 				case 2:
@@ -552,8 +566,7 @@ class TitleState extends MusicBeatState
 				case 15:
 					addMoreText('Night');
 				case 16:
-					addMoreText('Funkin'); // credTextShit.text += '\nFunkin';
-
+					addMoreText('Funkin');
 				case 17:
 					skipIntro();
 			}
@@ -567,7 +580,7 @@ class TitleState extends MusicBeatState
 		if (!skippedIntro)
 		{
 			#if TITLE_SCREEN_EASTER_EGG
-			if (playJingle) //Ignore deez
+			if (playJingle)
 			{
 				playJingle = false;
 				var easteregg:String = FlxG.save.data.psychDevsEasterEgg;
@@ -586,7 +599,7 @@ class TitleState extends MusicBeatState
 					case 'PESSY':
 						sound = FlxG.sound.play(Paths.sound('JinglePessy'));
 
-					default: //Go back to normal ugly ass boring GF
+					default:
 						remove(ngSpr);
 						remove(credGroup);
 						FlxG.camera.flash(FlxColor.WHITE, 2);
@@ -623,7 +636,7 @@ class TitleState extends MusicBeatState
 					};
 				}
 			}
-			else #end //Default! Edit this one!!
+			else #end
 			{
 				remove(ngSpr);
 				remove(credGroup);

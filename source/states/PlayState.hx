@@ -1674,7 +1674,8 @@ class PlayState extends MusicBeatState
 	{
 		if(!inCutscene && !paused && !freezeCamera) {
 			FlxG.camera.followLerp = 0.04 * cameraSpeed * playbackRate;
-			var idleAnim:Bool = (boyfriend.getAnimationName().startsWith('idle') || boyfriend.getAnimationName().startsWith('danceLeft') || boyfriend.getAnimationName().startsWith('danceRight'));
+			var _bfAnim:String = boyfriend.getAnimationName();
+			var idleAnim:Bool = (_bfAnim.startsWith('idle') || _bfAnim.startsWith('danceLeft') || _bfAnim.startsWith('danceRight'));
 			if(!startingSong && !endingSong && idleAnim) {
 				boyfriendIdleTime += elapsed;
 				if(boyfriendIdleTime >= 0.15) { // Kind of a mercy thing for making the achievement easier to get as it's apparently frustrating to some playerss
@@ -2716,11 +2717,17 @@ class PlayState extends MusicBeatState
 		var lastTime:Float = Conductor.songPosition;
 		if(Conductor.songPosition >= 0) Conductor.songPosition = FlxG.sound.music.time + Conductor.offset;
 
-		// obtain notes that the player can hit
-		var plrInputNotes:Array<Note> = notes.members.filter(function(n:Note):Bool {
-			var canHit:Bool = n != null && !strumsBlocked[n.noteData] && n.canBeHit && n.mustPress && !n.tooLate && !n.wasGoodHit && !n.blockHit;
-			return canHit && !n.isSustainNote && n.noteData == key;
-		});
+		// obtain notes that the player can hit (manual loop avoids Array.filter heap allocation)
+		var plrInputNotes:Array<Note> = [];
+		var _nm:Array<Note> = notes.members;
+		var _nmLen:Int = _nm.length;
+		for (_ni in 0..._nmLen) {
+			var _n:Note = _nm[_ni];
+			if (_n != null && _n.noteData == key && !_n.isSustainNote
+				&& _n.canBeHit && _n.mustPress && !_n.tooLate && !_n.wasGoodHit
+				&& !_n.blockHit && !strumsBlocked[_n.noteData])
+				plrInputNotes.push(_n);
+		}
 		plrInputNotes.sort(sortHitNotes);
 
 		if (plrInputNotes.length != 0) { // slightly faster than doing `> 0` lol
