@@ -4,71 +4,136 @@ import flixel.FlxG;
 import openfl.text.TextField;
 import openfl.text.TextFormat;
 import openfl.system.System;
+import openfl.display.Shape;
+import openfl.display.Sprite; 
 
-/**
-	The FPS class provides an easy-to-use monitor to display
-	the current frame rate of an OpenFL project
-**/
-class FPSCounter extends TextField
+
+class FPSCounter extends Sprite
 {
-	/**
-		The current frame rate, expressed using frames-per-second
-	**/
-	public var currentFPS(default, null):Int;
 
-	/**
-		The current memory usage (WARNING: this is NOT your total program memory usage, rather it shows the garbage collector memory)
-	**/
-	public var memoryMegas(get, never):Float;
+  public var currentFPS(default, null):Int;
 
-	@:noCompletion private var times:Array<Float>;
+  public var memoryMegas(get, never):Float;
 
-	public function new(x:Float = 10, y:Float = 10, color:Int = 0x000000)
-	{
-		super();
+  public var textField:TextField; 
 
-		this.x = x;
-		this.y = y;
+  @:noCompletion private var times:Array<Float>;
+  public var fpsHistory:Array<Int> = [];
+  public  var graph:Shape;
+  private var graphWidth:Int = 120;
+  private var graphHeight:Int = 40;
 
-		currentFPS = 0;
-		selectable = false;
-		mouseEnabled = false;
-		defaultTextFormat = new TextFormat("_sans", 14, color);
-		autoSize = LEFT;
-		multiline = true;
-		text = "FPS: ";
+  public function new(x:Float = 10, y:Float = 10, color:Int = 0x000000)
+  {
+    super();
 
-		times = [];
-	}
+    this.x = x;
+    this.y = y;
 
-	var deltaTimeout:Float = 0.0;
+    currentFPS = 0;
 
-	// Event Handlers
-	private override function __enterFrame(deltaTime:Float):Void
-	{
-		final now:Float = haxe.Timer.stamp() * 1000;
-		times.push(now);
-		while (times[0] < now - 1000) times.shift();
-		// prevents the overlay from updating every frame, why would you need to anyways @crowplexus
-		if (deltaTimeout < 50) {
-			deltaTimeout += deltaTime;
-			return;
-		}
+    textField = new TextField();
+    textField.selectable = false;
+    textField.mouseEnabled = false;
+    textField.defaultTextFormat = new TextFormat("_sans", 14, color);
+    textField.autoSize = LEFT;
+    textField.multiline = true;
+    textField.text = "FPS: ";
+    addChild(textField);
 
-		currentFPS = times.length < FlxG.updateFramerate ? times.length : FlxG.updateFramerate;		
-		updateText();
-		deltaTimeout = 0.0;
-	}
+    times = [];
 
-	public dynamic function updateText():Void { // so people can override it in hscript
-		text = 'FPS: ${currentFPS}'
-		+ '\nMemory: ${flixel.util.FlxStringUtil.formatBytes(memoryMegas)}';
+    graph = new Shape();
+    addChild(graph);
+    graph.x = 0;
+    graph.y = 40;
+  }
 
-		textColor = 0xFFFFFFFF;
-		if (currentFPS < FlxG.drawFramerate * 0.5)
-			textColor = 0xFFFF0000;
-	}
+  var deltaTimeout:Float = 0.0;
 
-	inline function get_memoryMegas():Float
-		return cpp.vm.Gc.memInfo64(cpp.vm.Gc.MEM_INFO_USAGE);
+  private override function __enterFrame(deltaTime:Float):Void
+  {
+    final now:Float = haxe.Timer.stamp() * 1000;
+    times.push(now);
+    while (times[0] < now - 1000) times.shift();
+    
+    if (deltaTimeout < 50) {
+      deltaTimeout += deltaTime;
+      return;
+    }
+
+    currentFPS = times.length < FlxG.updateFramerate ? times.length : FlxG.updateFramerate;  
+
+    if (backend.ClientPrefs.data != null && !backend.ClientPrefs.data.fpsGraph)
+    {
+      if (graph.visible) {
+        graph.visible = false;
+        fpsHistory = [];
+        graph.graphics.clear();
+      }
+    }
+    else 
+    {
+      if (!graph.visible) graph.visible = true;
+
+      fpsHistory.push(currentFPS);
+      if(fpsHistory.length > graphWidth)
+        fpsHistory.shift();
+
+      drawGraph();
+    }
+
+    updateText();
+    deltaTimeout = 0.0;
+  }
+
+  public dynamic function updateText():Void { 
+    if (backend.ClientPrefs.data != null && !backend.ClientPrefs.data.showFPS) {
+        this.visible = false;
+        return;
+    }
+    this.visible = true;
+    textField.text = 'FPS: ${currentFPS}'
+    + '\nMemory: ${flixel.util.FlxStringUtil.formatBytes(memoryMegas)}';
+
+    textField.textColor = 0xFFFFFFFF;
+    if (currentFPS < FlxG.drawFramerate * 0.5)
+      textField.textColor = 0xFFFF0000;
+  }
+
+  private function drawGraph():Void
+  {
+    graph.graphics.clear();
+
+    if(fpsHistory.length < 2)
+      return;
+
+    var col:Int = 0x00FF00;
+
+    if(currentFPS < FlxG.drawFramerate * 0.8)
+      col = 0xFFFF00;
+
+    if(currentFPS < FlxG.drawFramerate * 0.5)
+      col = 0xFF0000;
+
+    graph.graphics.lineStyle(1.5, col);
+
+    for(i in 0...fpsHistory.length)
+    {
+      var x = i;
+
+      var y = graphHeight - (fpsHistory[i] / FlxG.drawFramerate) * graphHeight;
+
+      if(y < 0)
+        y = 0;
+
+      if(i == 0)
+        graph.graphics.moveTo(x, y);
+      else
+        graph.graphics.lineTo(x, y);
+    }
+  }
+
+  inline function get_memoryMegas():Float
+    return cpp.vm.Gc.memInfo64(cpp.vm.Gc.MEM_INFO_USAGE);
 }
