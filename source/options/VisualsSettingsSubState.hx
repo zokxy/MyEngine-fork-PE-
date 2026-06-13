@@ -128,6 +128,14 @@ class VisualsSettingsSubState extends BaseOptionsMenu
 			BOOL);
 		addOption(option);
 		option.onChange = onChangeFPSCounter;
+
+
+		var graphOption:Option = new Option('FPS Graph',
+	    'Shows a real-time performance graph below the FPS counter.',
+	    'fpsGraph',
+	    BOOL);
+	    addOption(graphOption);
+	    graphOption.onChange = onChangeFPSGraph;
 		#end
 		
 		var option:Option = new Option('Pause Music:',
@@ -292,6 +300,19 @@ class VisualsSettingsSubState extends BaseOptionsMenu
 	{
 		if(Main.fpsVar != null)
 			Main.fpsVar.visible = ClientPrefs.data.showFPS;
+	}
+
+	function onChangeFPSGraph() 
+	{
+		if (Main.fpsVar != null) {
+			if (!ClientPrefs.data.fpsGraph && Main.fpsVar.graph.visible) {
+				Main.fpsVar.graph.visible = false;
+				Main.fpsVar.fpsHistory = [];
+				Main.fpsVar.graph.graphics.clear();
+			} else if (ClientPrefs.data.fpsGraph && !Main.fpsVar.graph.visible) {
+				Main.fpsVar.graph.visible = true;
+			}
+		}
 	}
 	#end
 }
