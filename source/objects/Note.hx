@@ -279,8 +279,8 @@ class Note extends FlxSprite
 
 		if (isSustainNote && prevNote != null)
 		{
-			alpha = 0.6;
-			multAlpha = 0.6;
+			alpha = 1;
+			multAlpha = 1;
 			hitsoundDisabled = true;
 			if(ClientPrefs.data.downScroll) flipY = true;
 
@@ -288,7 +288,6 @@ class Note extends FlxSprite
 			copyAngle = false;
 
 			animation.play(colArray[noteData % colArray.length] + 'holdend');
-
 			updateHitbox();
 
 			offsetX -= width / 2;
@@ -300,7 +299,7 @@ class Note extends FlxSprite
 			{
 				prevNote.animation.play(colArray[prevNote.noteData % colArray.length] + 'hold');
 
-				prevNote.scale.y *= Conductor.stepCrochet / 100 * 1.05;
+				prevNote.scale.y *= Conductor.stepCrochet / 100 * 1.08;
 				if(createdFrom != null && createdFrom.songSpeed != null) prevNote.scale.y *= createdFrom.songSpeed;
 
 				if(PlayState.isPixelStage) {
