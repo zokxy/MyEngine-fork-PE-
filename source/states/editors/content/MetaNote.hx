@@ -96,13 +96,23 @@ class MetaNote extends Note
 		}
 		else
 		{
-			sustainSprite.frames = Paths.getSparrowAtlas('noteSkins/NOTE_assets');
+			var skin:String = PlayState.SONG != null ? PlayState.SONG.arrowSkin : null;
+
+			if(skin == null || skin.length < 1)
+				skin = Note.defaultNoteSkin;
+
+			var postfix:String = Note.getNoteSkinPostfix();
+			var customSkin:String = skin + postfix;
+
+			if(Paths.fileExists('images/' + customSkin + '.png', IMAGE))
+				skin = customSkin;
+			sustainSprite.frames = Paths.getSparrowAtlas(skin);
 			sustainSprite.animation.addByPrefix('hold', col + ' hold piece', 24, true);
 			sustainSprite.animation.play('hold');
 			if(sustainSprite.animation.curAnim != null)
 				sustainSprite.animation.curAnim.curFrame = 0;
 
-			sustainSpriteEnd.frames = Paths.getSparrowAtlas('noteSkins/NOTE_assets');
+			sustainSpriteEnd.frames = Paths.getSparrowAtlas(skin);
 			sustainSpriteEnd.animation.addByPrefix('holdend', col + ' hold end', 24, true);
 			sustainSpriteEnd.animation.play('holdend');
 			if(sustainSpriteEnd.animation.curAnim != null)
@@ -129,6 +139,12 @@ class MetaNote extends Note
 	{
 		if(_lastZoom < 0) return;
 		setSustainLength(sustainLength, stepCrochet, _lastZoom);
+	}
+
+	public function reloadSustainSkin()
+	{
+	    if(sustainSprite != null && sustainSpriteEnd != null)
+	        _loadSustainTexture();
 	}
 	
 	var _noteTypeText:FlxText;
