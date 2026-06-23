@@ -2405,6 +2405,11 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					{
 						if(note == null) continue;
 						note.reloadNote(note.texture);
+							if(Std.isOfType(note, MetaNote))
+							{
+								var meta:MetaNote = cast note;
+								meta.reloadSustainSkin();
+							}
 						if(note.width > note.height) note.setGraphicSize(GRID_SIZE);
 						else note.setGraphicSize(0, GRID_SIZE);
 						note.updateHitbox();
@@ -4492,25 +4497,51 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 	function updateNotesRGB()
 	{
 		PlayState.SONG.disableNoteRGB = noRGBCheckBox.checked;
+
 		for (note in notes)
 		{
 			if(note == null) continue;
 
 			note.rgbShader.enabled = !noRGBCheckBox.checked;
+
 			if(note.rgbShader.enabled)
 			{
 				var data = backend.NoteTypesConfig.loadNoteTypeData(note.noteType);
-				if(data == null || data.length < 1) continue;
-
-				for (line in data)
+				if(data != null && data.length > 0)
 				{
-					var prop:String = line.property.join('.');
-					if(prop == 'rgbShader.enabled') note.rgbShader.enabled = line.value;
+					for (line in data)
+					{
+						var prop:String = line.property.join('.');
+						if(prop == 'rgbShader.enabled')
+							note.rgbShader.enabled = line.value;
+					}
+				}
+			}
+
+			//Sustain RGB Fix
+			if(Std.isOfType(note, MetaNote))
+			{
+				var meta:MetaNote = cast note;
+
+				if(meta.sustainSprite != null)
+				{
+					if(noRGBCheckBox.checked)
+					{
+						meta.sustainSprite.shader = null;
+						meta.sustainSpriteEnd.shader = null;
+					}
+					else
+					{
+						meta.sustainSprite.shader = meta.rgbShader.parent.shader;
+						meta.sustainSpriteEnd.shader = meta.rgbShader.parent.shader;
+					}
 				}
 			}
 		}
 
-		for (note in strumLineNotes.members) if(note != null) note.rgbShader.enabled = !noRGBCheckBox.checked;
+		for (note in strumLineNotes.members)
+			if(note != null)
+				note.rgbShader.enabled = !noRGBCheckBox.checked;
 	}
 
 	function updateGridVisibility()
