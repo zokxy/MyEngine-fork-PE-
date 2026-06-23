@@ -406,7 +406,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		if(chartEditorSave.data.infoBoxPosition != null && chartEditorSave.data.infoBoxPosition.length > 1)
 			infoBox.setPosition(chartEditorSave.data.infoBoxPosition[0], chartEditorSave.data.infoBoxPosition[1]);
 
-		upperBox = new PsychUIBox(40, 40, 330, 300, ['File', 'Edit', 'View']);
+		upperBox = new PsychUIBox(40, 40, 440, 300, ['File', 'Edit', 'View', 'Audio']);
 		upperBox.scrollFactor.set();
 		upperBox.isMinimized = true;
 		upperBox.minimizeOnFocusLost = true;
@@ -435,6 +435,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		addFileTab();
 		addEditTab();
 		addViewTab();
+		addAudioTab();
 
 		loadMusic();
 		reloadNotesDropdowns();
@@ -655,6 +656,7 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
     var lilBfResetAnim:Float = 0;
     var lilOppResetAnim:Float = 0;
 	var lastBeatHit:Int = 0;
+	var lastSectionHit:Int = -1;
 	var lastStep:Int = 0;
 
 	override function update(elapsed:Float)
@@ -925,6 +927,26 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 
 			if(!songFinished) Conductor.songPosition = FlxMath.bound(FlxG.sound.music.time + Conductor.offset, 0, FlxG.sound.music.length - 1);
 			updateScrollY();
+		}
+
+		if (isDraggingSustain) {
+		    if (FlxG.mouse.pressed) {
+		        var currentY:Float = FlxG.mouse.y - gridBg.y;
+		        var deltaPixels:Float = currentY - dragStartGridY;
+		        var stepCrochet:Float = Conductor.stepCrochet;
+		        var deltaTime:Float = deltaPixels * stepCrochet / (GRID_SIZE * curZoom);
+
+		        var snap:Float = stepCrochet / (curQuant / 16) / 2;
+		        deltaTime = Math.round(deltaTime / snap) * snap;
+
+		        var newSustain:Float = Math.max(0, dragStartSustain + deltaTime);
+		        dragSustainNote.setSustainLength(newSustain, cachedSectionCrochets[curSec] / 4, curZoom);
+		        susLengthStepper.value = newSustain;
+		        susLengthLastVal = newSustain;
+		    } else {
+		        isDraggingSustain = false;
+		        dragSustainNote = null;
+		    }
 		}
 
 		super.update(elapsed);
@@ -1321,6 +1343,14 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 							if(!holdingAlt) resetSelectedNotes();
 							selectedNotes.push(noteAdded);
 							addUndoAction(ADD_NOTE, {notes: [noteAdded]});
+							if (FlxG.mouse.pressed && !isMovingNotes) {
+							    isDraggingSustain = true;
+							    dragSustainNote = noteAdded;
+							    dragStartGridY = diffY;
+							    dragStartSustain = 0;
+							}
+							onSelectNote();
+    						softReloadNotes();
 						}
 						else if(!lockedEvents)
 						{
@@ -1376,9 +1406,19 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 				}
 				
 				if(metronomeStepper.value > 0 && lastBeatHit != curBeat)
-					FlxG.sound.play(Paths.sound('Metronome_Tick'), metronomeStepper.value);
+				{
+				    if(curSec != lastSectionHit)
+				    {
+				        FlxG.sound.play(Paths.sound('metronome1'), metronomeStepper.value);
+				        lastSectionHit = curSec;
+				    }
+				    else
+				    {
+				        FlxG.sound.play(Paths.sound('metronome2'), metronomeStepper.value);
+				    }
 
-				lastBeatHit = curBeat;
+				    lastBeatHit = curBeat;
+				}
 			}
 
 			var vortexPlaying:Bool = (vortexEnabled && FlxG.sound.music != null && FlxG.sound.music.playing);
@@ -1398,12 +1438,12 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 					{
 						if(hitSoundPlayer && note.mustPress)
 						{
-							FlxG.sound.play(Paths.sound('hitsound'), hitsoundPlayerStepper.value);
+							FlxG.sound.play(Paths.sound('hitNotePlayer'), hitsoundPlayerStepper.value);
 							hitSoundPlayer = false;
 						}
 						else if(hitSoundOpp && !note.mustPress)
 						{
-							FlxG.sound.play(Paths.sound('hitsound'), hitsoundOpponentStepper.value);
+							FlxG.sound.play(Paths.sound('hitNoteOpponent'), hitsoundOpponentStepper.value);
 							hitSoundOpp = false;
 						}
 					}
@@ -2024,6 +2064,11 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 	var showNextSection:Bool = true;
 	var showNoteTypeLabels:Bool = true;
 	var forceDataUpdate:Bool = true;
+
+	var isDraggingSustain:Bool = false;
+	var dragSustainNote:MetaNote = null;
+	var dragStartGridY:Float = 0;
+	var dragStartSustain:Float = 0;
 	
 	function loadSection(?sec:Null<Int> = null)
 	{
@@ -2262,7 +2307,6 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		objY += 50;
 		hitsoundPlayerStepper = new PsychUINumericStepper(objX, objY, 0.2, 0, 0, 1, 1);
 		hitsoundOpponentStepper = new PsychUINumericStepper(objX + 100, objY, 0.2, 0, 0, 1, 1);
-		metronomeStepper = new PsychUINumericStepper(objX + 200, objY, 0.2, 0, 0, 1, 1);
 
 		objY += 50;
 		instVolumeStepper = new PsychUINumericStepper(objX, objY, 0.1, 0.6, 0, 1, 1);
@@ -2284,10 +2328,8 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		tab_group.add(ignoreProgressCheckBox);
 		tab_group.add(new FlxText(hitsoundPlayerStepper.x, hitsoundPlayerStepper.y - 15, 100, 'Hitsound (Player):'));
 		tab_group.add(new FlxText(hitsoundOpponentStepper.x, hitsoundOpponentStepper.y - 15, 100, 'Hitsound (Opp.):'));
-		tab_group.add(new FlxText(metronomeStepper.x, metronomeStepper.y - 15, 100, 'Metronome:'));
 		tab_group.add(hitsoundPlayerStepper);
 		tab_group.add(hitsoundOpponentStepper);
-		tab_group.add(metronomeStepper);
 		
 		tab_group.add(new FlxText(instVolumeStepper.x, instVolumeStepper.y - 15, 100, 'Inst. Volume:'));
 		tab_group.add(new FlxText(playerVolumeStepper.x, playerVolumeStepper.y - 15, 100, 'Main Vocals:'));
@@ -4364,6 +4406,31 @@ class ChartingState extends MusicBeatState implements PsychUIEventHandler.PsychU
 		}, btnWid);
 		btn.text.alignment = LEFT;
 		tab_group.add(btn);
+	}
+
+	function addAudioTab()
+	{
+	    var tab = upperBox.getTab('Audio');
+	    var tab_group = tab.menu;
+	    var btnX = tab.x - upperBox.x;
+	    var btnY = 1;
+	    var btnWid = Std.int(tab.width);
+
+	    var label = new FlxText(btnX, btnY, btnWid, 'Metronome Volume:');
+	    btnY += 20;
+	    metronomeStepper = new PsychUINumericStepper(btnX, btnY, 0.2, 0, 0, 1, 1);
+
+	    if (chartEditorSave.data.metronomeVolume != null)
+	        metronomeStepper.value = chartEditorSave.data.metronomeVolume;
+
+	    metronomeStepper.onValueChange = function()
+	    {
+	        chartEditorSave.data.metronomeVolume = metronomeStepper.value;
+	        chartEditorSave.flush();
+	    };
+
+	    tab_group.add(label);
+	    tab_group.add(metronomeStepper);
 	}
 
 	function updateChartData()
